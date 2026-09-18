@@ -1,0 +1,4 @@
+data_raw/
+models/*.joblib
+__pycache__/
+*.pyc
