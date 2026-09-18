@@ -13,7 +13,9 @@ This project follows the repository `ODMAP/` checklist and is organized as Overv
 
 ### O — Overview
 - Objective: estimate period-specific realized climatic + anthropogenic niche and mapped habitat suitability.
-- Outputs: continuous suitability, TSS-threshold binary distribution, variable importance, response curves, model evaluation, clamping/novelty diagnostics, E-space niche summaries, and a completed ODMAP report.
+- Study domain: Canada for both taxa, so the plant and animal are fitted on the same environmental/background domain.
+- Common grid: 10 arc-min, EPSG:4326; this targets continental realized-niche patterns rather than stand-scale occupancy.
+- Outputs: continuous suitability, TSS-threshold binary distribution, variable importance, response curves/model diagnostics, E-space niche summaries, temporal range statistics, and a completed ODMAP report.
 - Common historical target years: 1990, 1995, 2000, 2005, 2010, 2015, 2020.
 - Temporal matching:
   - climate: five-year windows centered on target year (1988–1992, 1993–1997, 1998–2002, 2003–2007, 2008–2012, 2013–2017, 2018–2022)
@@ -26,87 +28,90 @@ This project follows the repository `ODMAP/` checklist and is organized as Overv
 Black spruce:
 - Source: Natural Resources Canada Annual Tree Species 1984–2022 / Awesome-GEE mirror.
 - Response: annual 30 m dominant-species classification; class 18 = *Picea mariana*.
-- Modeling grid: aggregate/rasterize to the climate grid; retain observed prevalence rather than treating unobserved non-forest pixels as species absences without checking masks.
+- Processing: reproject/aggregate to the 10 arc-min common grid by mode. Class 18 is presence; other valid mapped dominant-tree classes are the modeled contrast/absence at the continental grid scale; nodata is excluded.
 
 Red fox:
-- Source: GBIF occurrence records.
-- Filters: accepted taxon, valid lon/lat, year in target period, no obvious coordinate problems, terrestrial points, remove exact duplicates, one record per environmental grid cell per period, remove institutional/centroid-like records when detectable.
-- Sampling-bias control: spatial thinning + buffered accessible-area background; sensitivity comparison against broader background.
+- Source: GBIF occurrence API, taxon key 5219243, country=CA.
+- Filters: presence records only, valid lon/lat, no GBIF geospatial issue, within Canada polygon, fossil records excluded, coordinate uncertainty <=20 km when reported, duplicate environmental-grid cells removed per period.
+- Sampling-bias control: one presence per 10 arc-min cell per period plus spatial block cross-validation.
+- Background: period-matched valid Canadian environmental cells excluding presence cells; the broad Canada-wide background is explicit because the species is widespread and the study domain itself defines the accessible calibration region for this analysis.
 
 #### Climate
 - Source: WorldClim historical monthly weather, CRU-TS 4.09 downscaled with WorldClim 2.1 bias correction.
 - Raw variables: monthly tmin, tmax, precipitation.
-- Native historical resolution used here: 2.5 arc-min.
+- Historical resolution used: 10 arc-min.
 - Derive 19 BIOCLIM variables separately for each five-year period from monthly climatologies.
 
 #### Human activity
 - Source: Global Human Modification v3, overall modification (AA), 300 m, 1990–2020 in five-year steps.
-- Resample/aggregate to the common 2.5 arc-min model grid using mean.
+- Aggregate/resample to the common 10 arc-min model grid using mean.
 
 #### Harmonization
 - CRS: EPSG:4326.
-- Common grid: WorldClim 2.5 arc-min.
+- Common grid: WorldClim 10 arc-min.
 - Continuous predictors: bilinear/mean aggregation as appropriate.
-- Categorical observed tree map: class extraction before aggregation; use proportion of black-spruce pixels / presence threshold documented in results.
+- Categorical annual tree map: modal aggregation to the common grid.
 - All processing is scripted; large raw rasters are not committed to Git.
 
 ### M — Model
 #### Predictor screening
-1. Remove zero/near-zero variance layers within accessible area.
-2. Ecological pre-screen of all 19 BIO variables + GHM.
-3. Pairwise Pearson |r| >= 0.7: retain the variable with stronger univariate spatial-CV performance / clearer ecological interpretation.
-4. VIF target < 5.
-5. Repeat screening by species; use a common selected predictor set across periods for each species to keep temporal comparisons interpretable.
+1. Start from dynamic BIO1–BIO19 + GHM for every period.
+2. Remove zero/near-zero variance layers.
+3. Pairwise Pearson |r| >= 0.7 pruning.
+4. VIF target <=5.
+5. Estimate permutation importance only on held-out spatial folds.
+6. Rank predictors and test nested top-k subsets; select the smallest subset whose spatial-CV TSS is within 0.01 of the maximum.
+7. Use one selected predictor set per species across all historical periods to preserve temporal comparability.
 
 #### Algorithms
-Candidate models follow the repository ENM curriculum and `biomod2` logic:
-- GLM
-- GAM
+Candidate model classes are:
+- GLM (regularized logistic regression)
+- GAM-like spline logistic model
 - GBM
 - Random Forest
-- Maxnet / MaxEnt-style penalized presence-background model
-- XGBoost when dependency is available
+- XGBoost when the dependency is available
+
+These cover parametric, smooth, bagged-tree and boosted-tree responses while remaining executable without a Java MaxEnt dependency. Model class is selected empirically rather than predetermined.
 
 #### Tuning
 - Spatial block cross-validation, not random k-fold.
-- Maxnet: feature classes L/LQ/LQH/LQHP and regularization multipliers 0.5–4.
-- RF: mtry, min node size / terminal node settings.
-- GBM: trees, interaction depth, shrinkage, min observations.
-- GAM: smooth complexity constrained to avoid overfit.
-- XGBoost: depth, learning rate, subsample, column sampling, regularization.
-- Reproducible fixed random seed.
+- GLM: regularization strength.
+- GAM-like spline model: spline knots/degree + regularization.
+- RF: depth, minimum leaf size, feature sampling.
+- GBM: number of trees, learning rate, depth, subsampling.
+- XGBoost: depth, learning rate, subsampling, column sampling, regularization.
+- Reproducible fixed random seed = 20260918.
 
 ### A — Assessment
-Primary selection rule is validation performance under spatial CV, with overfitting penalty.
+Primary selection rule is validation performance under spatial CV, with an explicit overfitting penalty.
 
 Metrics:
 - ROC-AUC
 - TSS
 - sensitivity / specificity
-- Boyce index for presence-background outputs where applicable
-- omission rate
-- calibration / Brier score when feasible
-- AUC train–validation difference as an overfitting diagnostic
+- Brier score
+- training–validation AUC difference
+- leave-one-period-out temporal AUC/TSS as a transferability check
 
 Model choice:
-1. Exclude models with unstable folds or unacceptable omission.
-2. Rank by mean spatial-CV TSS, then AUC/Boyce.
-3. If performance is statistically/ practically tied, choose the simpler model.
-4. Build an ensemble only if multiple model classes pass quality thresholds and the ensemble improves spatial-CV performance; otherwise report the single best model.
+1. Exclude failed/unstable candidates.
+2. Rank primarily by mean spatial-CV TSS, secondarily by ROC-AUC and smaller train–validation AUC gap.
+3. Determine the parsimonious factor subset using the 0.01-TSS rule.
+4. Recompare algorithms using the final factor set and retune the selected algorithm.
+5. Use out-of-fold predictions to estimate the final max-TSS binary threshold.
 
 ### P — Prediction
 For each species × period:
-- continuous suitability raster
-- binary suitable/unsuitable raster using validation-derived max-TSS threshold
-- clamping / environmental novelty mask
-- observed records/range overlay
-- publication-ready map
+- continuous suitability GeoTIFF
+- binary suitable/unsuitable GeoTIFF using the out-of-fold max-TSS threshold
+- observed records/range overlay PNG
+- suitable area and suitability centroid
 
 Additional temporal products:
-- suitability change between adjacent periods
-- stable / loss / gain maps
-- range area and centroid shift
+- seven-period map panel for each species
+- period-wise range statistics
 - PCA environmental-space realized-niche plot by period
+- completed ODMAP value table and Markdown report
 
 ## Directory layout
 ```
@@ -115,9 +120,9 @@ ENM_historical_niche/
   README.md
   config/
   scripts/
-  data_raw/            # gitignored / download manifests only
-  data_processed/      # compact tables, selected predictors
-  models/              # lightweight summaries; large objects optional/LFS
+  data_raw/            # gitignored / recreated automatically
+  data_processed/      # harmonized rasters, clean points/model tables
+  models/              # workflow artifact (large binary objects ignored by Git)
   results/
     evaluation/
     variable_selection/
@@ -128,10 +133,11 @@ ENM_historical_niche/
 ```
 
 ## Reproducibility / acceptance criteria
-- Every raw source has URL/DOI/version/access date and checksum where available.
+- Every source has a stable URL/DOI/version or API query definition.
 - No period is modeled unless occurrence/range and predictors genuinely overlap in time.
 - No random train/test split is used as the primary performance estimate.
-- Predictor selection is performed without leaking validation folds where computationally feasible; otherwise the limitation is documented.
-- Final maps are generated only from the selected/tuned model or validated ensemble.
+- Final variables must pass the documented collinearity/importance/parsimony procedure.
+- Final model class and hyperparameters must come from spatial-CV comparison.
+- Final maps are generated only from the selected/tuned final model.
 - ODMAP protocol is filled from actual analysis settings/results, not generic placeholders.
-- Any data-access limitation is recorded explicitly rather than replaced with simulated data.
+- Any failed data source or analysis step is logged explicitly; simulated replacement data are prohibited.
