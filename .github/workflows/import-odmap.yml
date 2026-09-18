@@ -1,0 +1,32 @@
+name: Import ODMAP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/import-odmap.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Copy source repository into ODMAP
+        run: |
+          rm -rf /tmp/ODMAP ODMAP
+          git clone --depth 1 --branch master https://github.com/UP-macroecology/ODMAP.git /tmp/ODMAP
+          rm -rf /tmp/ODMAP/.git
+          cp -a /tmp/ODMAP ./ODMAP
+      - name: Commit imported repository and remove temporary workflow
+        run: |
+          rm -f .github/workflows/import-odmap.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A ODMAP .github/workflows/import-odmap.yml
+          git commit -m 'Import UP-macroecology/ODMAP into ODMAP'
+          git push origin main
