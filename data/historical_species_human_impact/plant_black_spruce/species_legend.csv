@@ -1,0 +1,39 @@
+class_value,common_name,selected_target
+0,Non Tree,false
+1,Amabilis fir,false
+2,Balsam fir,false
+3,Subalpine fir,false
+4,Bigleaf maple,false
+5,Red maple,false
+6,Sugar maple,false
+7,Gray alder,false
+8,Red alder,false
+9,Yellow birch,false
+10,White birch,false
+11,Yellow-cedar,false
+12,Black ash,false
+13,Tamarack,false
+14,Western larch,false
+15,Norway spruce,false
+16,Engelmann spruce,false
+17,White spruce,false
+18,Black spruce,true
+19,Red spruce,false
+20,Sitka spruce,false
+21,Whitebark pine,false
+22,Jack pine,false
+23,Lodgepole pine,false
+24,Ponderosa pine,false
+25,Red pine,false
+26,Eastern white pine,false
+27,Balsam poplar,false
+28,Largetooth aspen,false
+29,Trembling aspen,false
+30,Douglas-fir,false
+31,Red oak,false
+32,Eastern white-cedar,false
+33,Western redcedar,false
+34,Eastern hemlock,false
+35,Western hemlock,false
+36,Mountain hemlock,false
+37,White elm,false
