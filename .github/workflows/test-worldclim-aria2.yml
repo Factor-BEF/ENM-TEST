@@ -1,0 +1,26 @@
+name: Test WorldClim segmented download
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/test-worldclim-aria2.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install aria2
+        run: sudo apt-get update -qq && sudo apt-get install -y aria2
+      - name: Segmented WorldClim download test
+        run: |
+          set -euxo pipefail
+          url='https://geodata.ucdavis.edu/climate/worldclim/2_1/hist/cts4.09/wc2.1_cruts4.09_10m_tmin_1990-1999.zip'
+          start=$(date +%s)
+          aria2c -x 8 -s 8 -k 1M --connect-timeout=120 --timeout=120 --max-tries=5 --retry-wait=3 --file-allocation=none -o test.zip "$url"
+          end=$(date +%s)
+          ls -lh test.zip
+          unzip -t test.zip | tail -n 2
+          echo "ELAPSED_SECONDS=$((end-start))"
