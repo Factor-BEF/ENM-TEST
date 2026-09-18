@@ -1,0 +1,4 @@
+category,target_name,scientific_name,dataset,temporal_coverage,temporal_resolution,spatial_resolution,data_type,gee_asset_or_download_key,doi,license,notes
+plant,Black spruce,Picea mariana,Canada Long-Term Tree Species,1984-2022,annual,30 m,raster ImageCollection,projects/sat-io/open-datasets/CA_FOREST/SPECIES-1984-2022,,Open Government Licence - Canada,Target class value 18
+animal,Red fox,Vulpes vulpes,GBIF occurrence download,1980-2017,occurrence dates,point,occurrence archive,0008885-200221144449610,10.15468/dl.ktotdn,GBIF data-use terms,256439 records; hasCoordinate=true; hasGeospatialIssue=false; taxonKey=5219243
+human_activity,Global Human Modification,,Global Human Modification v3 historical overall,1990-2020,5-year,300 m,raster ImageCollection,projects/sat-io/open-datasets/GHM/HM_1990_2020_OVERALL_300M,10.5281/zenodo.14449495,CC BY 4.0,Years 1990;1995;2000;2005;2010;2015;2020; values 0-1
