@@ -9,12 +9,15 @@ on:
       - 'ENM_historical_niche/scripts/**'
       - 'ENM_historical_niche/requirements.txt'
   workflow_dispatch:
+  issues:
+    types: [opened]
 
 permissions:
   contents: write
 
 jobs:
   historical-enm:
+    if: github.event_name != 'issues' || github.event.issue.title == '[RUN] Historical ENM ODMAP'
     runs-on: ubuntu-latest
     timeout-minutes: 330
     env:
