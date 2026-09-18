@@ -1,0 +1,2 @@
+role,species,scientific_name,gbif_taxon_key,download_key,doi,year_start,year_end,record_count,has_coordinate,has_geospatial_issue,download_url,notes
+primary,Red fox,Vulpes vulpes,5219243,0008885-200221144449610,10.15468/dl.ktotdn,1980,2017,256439,true,false,https://api.gbif.org/v1/occurrence/download/request/0008885-200221144449610.zip,Fixed archived GBIF occurrence download selected for historical ENM
