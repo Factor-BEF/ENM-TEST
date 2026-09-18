@@ -19,6 +19,7 @@ import math
 import os
 import re
 import shutil
+import subprocess
 import sys
 import time
 import warnings
@@ -117,28 +118,43 @@ def sha256(path: Path, chunk: int = 1024 * 1024) -> str:
 
 
 def download(url: str, path: Path, min_bytes: int = 1000, retries: int = 4) -> Path:
+    """Robust resumable downloader for large ecological raster archives.
+
+    curl is used instead of requests for WorldClim/NRCan-sized files because it
+    supports byte-range resume and tolerates slow institutional data servers.
+    Partial files are kept between attempts and resumed rather than discarded.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and path.stat().st_size >= min_bytes:
         return path
+    tmp = path.with_suffix(path.suffix + ".part")
     last = None
     for attempt in range(1, retries + 1):
         try:
-            log(f"download {url} -> {path.name} (attempt {attempt})")
-            with requests.get(url, stream=True, timeout=(30, 180), allow_redirects=True) as r:
-                r.raise_for_status()
-                tmp = path.with_suffix(path.suffix + ".part")
-                with tmp.open("wb") as f:
-                    for chunk in r.iter_content(1024 * 1024):
-                        if chunk:
-                            f.write(chunk)
-                if tmp.stat().st_size < min_bytes:
-                    raise RuntimeError(f"download too small: {tmp.stat().st_size}")
-                tmp.replace(path)
+            log(f"download {url} -> {path.name} (attempt {attempt}; resume={tmp.exists()})")
+            cmd = [
+                "curl", "-fL", "--http1.1",
+                "--retry", "5", "--retry-delay", "10", "--retry-all-errors",
+                "--connect-timeout", "120", "--speed-time", "300", "--speed-limit", "1024",
+                "--max-time", "5400", "--continue-at", "-",
+                "--user-agent", "Mozilla/5.0 ENM-TEST/1.0",
+                "--output", str(tmp), url,
+            ]
+            p = subprocess.run(cmd, text=True, capture_output=True, timeout=5500)
+            if p.returncode != 0:
+                # curl exit 33 commonly means the server rejected resume; restart cleanly once.
+                if p.returncode == 33 and tmp.exists():
+                    tmp.unlink()
+                raise RuntimeError(f"curl exit {p.returncode}: {p.stderr[-1200:]}")
+            if not tmp.exists() or tmp.stat().st_size < min_bytes:
+                raise RuntimeError(f"download too small: {tmp.stat().st_size if tmp.exists() else 0}")
+            tmp.replace(path)
+            log(f"download complete {path.name}: {path.stat().st_size/1e6:.1f} MB")
             return path
         except Exception as e:
             last = e
             log(f"download failed: {e}")
-            time.sleep(attempt * 3)
+            time.sleep(attempt * 5)
     raise RuntimeError(f"Failed to download {url}: {last}")
 
 
