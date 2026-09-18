@@ -1,0 +1,33 @@
+name: Test WorldClim range access
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/test-worldclim-range.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test remote ZIP range reads
+        run: |
+          pip install remotezip requests
+          python - <<'PY'
+          from remotezip import RemoteZip
+          url='https://geodata.ucdavis.edu/climate/worldclim/2_1/hist/cts4.09/wc2.1_cruts4.09_10m_tmin_1990-1999.zip'
+          with RemoteZip(url) as z:
+              names=z.namelist()
+              print('N=',len(names))
+              print('\n'.join(names[:8]))
+              hits=[n for n in names if '1990' in n and n.lower().endswith('.tif')]
+              print('HITS',hits[:3])
+              if not hits: raise SystemExit('No 1990 tif found')
+              data=z.read(hits[0])
+              print('FETCHED_BYTES',len(data))
+          PY
