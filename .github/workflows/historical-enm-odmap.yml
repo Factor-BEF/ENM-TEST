@@ -1,0 +1,83 @@
+name: Historical ENM ODMAP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/historical-enm-odmap.yml'
+      - 'ENM_historical_niche/config/**'
+      - 'ENM_historical_niche/scripts/**'
+      - 'ENM_historical_niche/requirements.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  historical-enm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      PYTHONUNBUFFERED: '1'
+      GDAL_HTTP_MAX_RETRY: '4'
+      GDAL_HTTP_RETRY_DELAY: '2'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: ENM_historical_niche/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ENM_historical_niche/requirements.txt
+
+      - name: Syntax check
+        run: |
+          python -m py_compile ENM_historical_niche/scripts/pipeline.py
+          python -m py_compile ENM_historical_niche/scripts/_pipeline_part1.py
+          python -m py_compile ENM_historical_niche/scripts/_pipeline_part2.py
+          python -m py_compile ENM_historical_niche/scripts/_pipeline_part3.py
+          python -m py_compile ENM_historical_niche/scripts/_pipeline_part4.py
+
+      - name: Run ODMAP historical ENM pipeline
+        run: python ENM_historical_niche/scripts/pipeline.py
+
+      - name: Save workflow artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-enm-odmap-output
+          path: |
+            ENM_historical_niche/results
+            ENM_historical_niche/odmap
+            ENM_historical_niche/logs
+            ENM_historical_niche/models
+            ENM_historical_niche/data_processed
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Commit reproducible results
+        if: success()
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ENM_historical_niche/README.md \
+                  ENM_historical_niche/data_processed \
+                  ENM_historical_niche/results \
+                  ENM_historical_niche/odmap \
+                  ENM_historical_niche/logs
+          if git diff --cached --quiet; then
+            echo 'No generated changes to commit.'
+            exit 0
+          fi
+          git commit -m 'results: historical ODMAP niche models [skip actions]'
+          git pull --rebase origin main
+          git push origin HEAD:main
